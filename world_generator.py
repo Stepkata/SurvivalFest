@@ -10,19 +10,19 @@ noise4 = PerlinNoise(octaves=24)
 
 terrain = {
     (0, 0, 1)  :'water' ,
-    (0, 0.6, 0):'forest',
+    (0, 0.6, 0):'swamp',
     (0, 1, 0)  :'grass' ,
-    (0, 0.4, 0):'swamp' 
+    (0, 0.4, 0):'forest' 
 }
 
 colors = terrain.keys() # RGB values in the range [0, 1]
 custom_cmap = ListedColormap(colors)
 
-def generateWorld():
-    world = []
+def generateWorld(xpix = 200, ypix = 100):
+    world = {}
 
     points = []
-    xpix, ypix = 200, 100
+
     #pic = []
     for i in range(ypix):
         #row = []
@@ -41,7 +41,7 @@ def generateWorld():
     for ((x,y), value) in points:
         normalized = (value - minv) / (maxv - minv)
         (r,g,b,a) = custom_cmap(abs(normalized))
-        world.append(((x,y), (r,g,b,a), terrain[(r,g,b)]))
+        world[(x,y)] = ((r,g,b,a), terrain[(r,g,b)])
 
     #plt.imshow(pic, cmap=custom_cmap)
 
