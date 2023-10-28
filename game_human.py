@@ -31,12 +31,14 @@ SPEED = 5
 
 class Game:
     
-    def __init__(self, w=1400, h=750):
+    def __init__(self, w=1400, h=750, seed=890):
+        #display params
         self.width = w
         self.height = h
         self.w = 200
-        self.h = 100
+        self.h = 120
         self.board_start = 50
+        self.block = 10
 
         # init display
         self.display = pygame.display.set_mode((self.width, self.height))
@@ -45,16 +47,19 @@ class Game:
         
         # init game state
         self.direction = Direction.RIGHT
-        
+
+        #snake
         self.head = Point(int(self.w/2), int(self.h/2))
         self.snake = [self.head, 
                       Point(self.head.x-1, self.head.y),
                       Point(self.head.x-2, self.head.y)]
         
+        
         self.score = 0
         self.food_eadible = []
         self.food_poison = []
-        self.world = generateWorld(self.w, self.h)
+        self.seed = seed
+        self.world = generateWorld(self.w, self.h, seed)
         self._create_food()
 
     def _board_point(self, x):
@@ -65,24 +70,22 @@ class Game:
     
     def _create_food(self):
         for _ in range(30):
-            self._place_food()
+            self._place_food(self.w-1, self.h-1, self.food_eadible)
         for _ in range(20):
-            self._place_poison()
+            self._place_food(self.w-1, self.h-1, self.food_poison)
         
-    def _place_food(self):
-        x = random.randint(0, self.w)
-        y = random.randint(0, self.h)
-        self.food_eadible.append(Point(x, y))
-        if self.food_eadible in self.snake:
+    def _place_food(self, w, h, food_array):
+        x = random.randint(0, w)
+        y = random.randint(0, h)
+        (_, name) = self.world[(x, y)]
+        while name == 'water':
+            x = random.randint(0, w)
+            y = random.randint(0, h)
+            (_, name) = self.world[(x, y)]
+        food_array.append(Point(x, y))
+        if food_array in self.snake:
             self._place_food()
 
-    def _place_poison(self):
-        x = random.randint(0, self.w)
-        y = random.randint(0, self.h)
-        self.food_poison.append(Point(x, y))
-        if self.food_poison in self.snake:
-            self._place_food()
-        
     def play_step(self):
         # 1. collect user input
         SPEED = 5
@@ -119,7 +122,7 @@ class Game:
         if self.head in self.food_eadible:
             self.score += 1
             self.food_eadible.remove(self.head)
-            self._place_food()
+            self._place_food(self.w, self.h, self.food_eadible)
         else:
             self.snake.pop()
         
@@ -135,17 +138,20 @@ class Game:
             return True
         # hits itself
         if self.head in self.snake[1:]:
-            return True
-        
+            x = random.randint(0, 10)
+            if x < 7:
+                return True
+        #eats poisoned food
         if self.head in self.food_poison:
             return True
-
+        #drowns
         (_, name) = self.world[(self.head.x, self.head.y)]
         if name == "water":
             return True
+        #gets killed by a predator
         elif name == "forest":
             x = random.randint(0, 100)
-            if x < 5:
+            if x < 3:
                 return True
         
         return False
@@ -171,6 +177,8 @@ class Game:
         pygame.display.flip()
 
     def drawBoard(self):
+        pygame.draw.rect(self.display, (140, 140, 140), pygame.Rect(self.board_start-BLOCK_SIZE, self.board_start-BLOCK_SIZE, 
+                                                                    (self.w+2)*BLOCK_SIZE, (self.h+2)*BLOCK_SIZE))
         for (x, y), ((r,g,b,_), _) in self.world.items():
                 (xp, yp) = self._board_points(x,y)
                 pygame.draw.rect(self.display, (r*255,g*255,b*255), pygame.Rect(xp, yp, BLOCK_SIZE, BLOCK_SIZE))

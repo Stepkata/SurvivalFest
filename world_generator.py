@@ -2,15 +2,10 @@ import matplotlib.pyplot as plt
 from perlin_noise import PerlinNoise
 from matplotlib.colors import ListedColormap
 
-noise1 = PerlinNoise(octaves=3)
-noise2 = PerlinNoise(octaves=6)
-noise3 = PerlinNoise(octaves=12)
-noise4 = PerlinNoise(octaves=24)
-
 
 terrain = {
     (0, 0, 1)  :'water' ,
-    (0, 0.6, 0):'swamp',
+    (0.45, 0.4, 0.3):'swamp',
     (0, 1, 0)  :'grass' ,
     (0, 0.4, 0):'forest' 
 }
@@ -18,7 +13,13 @@ terrain = {
 colors = terrain.keys() # RGB values in the range [0, 1]
 custom_cmap = ListedColormap(colors)
 
-def generateWorld(xpix = 200, ypix = 100):
+def generateWorld(xpix = 200, ypix = 100, world_seed=890):
+    
+    noise1 = PerlinNoise(octaves=3, seed = world_seed)
+    noise2 = PerlinNoise(octaves=6, seed = world_seed)
+    noise3 = PerlinNoise(octaves=12, seed = world_seed)
+    noise4 = PerlinNoise(octaves=24, seed = world_seed)
+
     world = {}
 
     points = []
