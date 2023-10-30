@@ -3,6 +3,9 @@ import random
 from enum import Enum
 from collections import namedtuple
 from world_generator import generateWorld
+import pickle
+import math
+import numpy as np
 
 pygame.init()
 #font = pygame.font.Font('arial.ttf', 25)
@@ -15,6 +18,8 @@ class Direction(Enum):
     DOWN = 4
     
 Point = namedtuple('Point', 'x, y')
+
+Food = namedtuple('Food', 'x, y, eadible, color')
 
 # rgb colors
 WHITE = (255, 255, 255)
@@ -38,10 +43,11 @@ class Game:
         self.w = 200
         self.h = 120
         self.board_start = 50
-        self.block = 10
+        self.tile = 20
 
         # init display
         self.display = pygame.display.set_mode((self.width, self.height))
+        #self.game_board = pygame.display.set_mode((self.w, self.h))
         pygame.display.set_caption('Game')
         self.clock = pygame.time.Clock()
         
@@ -58,6 +64,7 @@ class Game:
         self.score = 0
         self.food_eadible = []
         self.food_poison = []
+        self.food = np.empty(int(self.w/self.tile)*int(self.h/self.tile))
         self.seed = seed
         self.world = generateWorld(self.w, self.h, seed)
         self._create_food()
@@ -69,26 +76,36 @@ class Game:
         return (self._board_point(x), self._board_point(y))
     
     def _create_food(self):
-        for _ in range(30):
-            self._place_food(self.w-1, self.h-1, self.food_eadible)
-        for _ in range(20):
-            self._place_food(self.w-1, self.h-1, self.food_poison)
+        for i in range(int(self.w/self.tile)):
+            for j in range(int(self.h/self.tile)):           
+                for _ in range(5):
+                    self._place_food(i, j, self.food_eadible)
+                for _ in range(5):
+                    self._place_food(i, j, self.food_poison)
         
     def _place_food(self, w, h, food_array):
-        x = random.randint(0, w)
-        y = random.randint(0, h)
+        x = random.randint(w*self.tile, (w+1)*self.tile-1)
+        y = random.randint(h*self.tile, (h+1)*self.tile-1)
         (_, name) = self.world[(x, y)]
-        while name == 'water':
-            x = random.randint(0, w)
-            y = random.randint(0, h)
-            (_, name) = self.world[(x, y)]
+        if name == 'water':
+            return
         food_array.append(Point(x, y))
         if food_array in self.snake:
             self._place_food()
 
+    def _spawn_food(self, food_array):
+        for food in food_array:
+                n = random.randint(0, 100)
+                if n<4:
+                    self._place_food(math.floor(food.x/self.tile), math.floor(food.y/self.tile), food_array)
+
     def play_step(self):
         # 1. collect user input
         SPEED = 5
+        if self.clock.get_time() % 20 == 0:
+            self._spawn_food(self.food_eadible)
+            self._spawn_food(self.food_poison)
+
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -118,11 +135,11 @@ class Game:
         if game_over:
             return game_over, self.score
             
-        # 4. place new food or just move
+        # 4. eat food or just move
         if self.head in self.food_eadible:
             self.score += 1
             self.food_eadible.remove(self.head)
-            self._place_food(self.w, self.h, self.food_eadible)
+            self._place_food(math.floor(self.head.x/self.tile), math.floor(self.head.y/self.tile), self.food_eadible)
         else:
             self.snake.pop()
         
@@ -202,6 +219,8 @@ class Game:
             y -= 1
             
         self.head = Point(x, y)
+
+
             
 
 if __name__ == '__main__':
