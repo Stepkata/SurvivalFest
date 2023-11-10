@@ -19,8 +19,6 @@ class Direction(Enum):
     
 Point = namedtuple('Point', 'x, y')
 
-Food = namedtuple('Food', 'x, y, eadible, color')
-
 # rgb colors
 WHITE = (255, 255, 255)
 RED = (200,0,0)
@@ -28,7 +26,7 @@ BLUE1 = (0, 0, 255)
 BLUE2 = (0, 100, 255)
 BLACK = (0,0,0)
 
-POSON = (200,0,0)
+POISON = (200,0,0)
 EADIBLE = (247, 149, 45)
 
 BLOCK_SIZE = 6
@@ -48,6 +46,7 @@ class Game:
         # init display
         self.display = pygame.display.set_mode((self.width, self.height))
         #self.game_board = pygame.display.set_mode((self.w, self.h))
+        self.stats_board = pygame.surface.Surface((200, h))
         pygame.display.set_caption('Game')
         self.clock = pygame.time.Clock()
         
@@ -62,10 +61,11 @@ class Game:
         
         
         self.score = 0
+        self.hunger = 30
         self.food_eadible = []
         self.food_poison = []
-        self.food = np.empty(int(self.w/self.tile)*int(self.h/self.tile))
         self.seed = seed
+        self._spawn_food_locations = []
         self.world = generateWorld(self.w, self.h, seed)
         self._create_food()
 
@@ -80,31 +80,34 @@ class Game:
             for j in range(int(self.h/self.tile)):           
                 for _ in range(5):
                     self._place_food(i, j, self.food_eadible)
-                for _ in range(5):
+                for _ in range(2):
                     self._place_food(i, j, self.food_poison)
-        
+
+
     def _place_food(self, w, h, food_array):
         x = random.randint(w*self.tile, (w+1)*self.tile-1)
         y = random.randint(h*self.tile, (h+1)*self.tile-1)
         (_, name) = self.world[(x, y)]
-        if name == 'water':
+        if name == 'water': #no food in water
             return
+        elif name == 'swamp': #more food on swamps
+            n = random.randint(0, 100)
+            if n < 7:
+                self._place_food(w,h,food_array)
+        elif name == 'forest': #much more food in the forest
+            n = random.randint(0, 100)
+            if n < 15:
+                self._place_food(w,h,food_array)
         food_array.append(Point(x, y))
-        if food_array in self.snake:
-            self._place_food()
 
-    def _spawn_food(self, food_array):
-        for food in food_array:
-                n = random.randint(0, 100)
-                if n<4:
-                    self._place_food(math.floor(food.x/self.tile), math.floor(food.y/self.tile), food_array)
 
     def play_step(self):
         # 1. collect user input
         SPEED = 5
-        if self.clock.get_time() % 20 == 0:
-            self._spawn_food(self.food_eadible)
-            self._spawn_food(self.food_poison)
+        if self.clock.get_time() % 40 == 0:
+            for spawn in self._spawn_food_locations:
+                self._place_food(spawn.x, spawn.y, self.food_eadible)
+            self._spawn_food_locations.clear()
 
 
         for event in pygame.event.get():
@@ -131,42 +134,52 @@ class Game:
         self.snake.insert(0, self.head)
         
         # 3. check if game over
-        game_over = self._is_collision()
-        if game_over:
-            return game_over, self.score
+        if self._is_collision():
+            return True, self.score
             
         # 4. eat food or just move
         if self.head in self.food_eadible:
             self.score += 1
+            self.hunger += 10
             self.food_eadible.remove(self.head)
-            self._place_food(math.floor(self.head.x/self.tile), math.floor(self.head.y/self.tile), self.food_eadible)
+            self._spawn_food_locations.append(Point(math.floor(self.head.x/self.tile), math.floor(self.head.y/self.tile)))
         else:
             self.snake.pop()
         
         # 5. update ui and clock
         self._update_ui()
+        self.hunger -= 1
         self.clock.tick(SPEED)
         # 6. return game over and score
-        return game_over, self.score
+        return False, self.score
     
     def _is_collision(self):
         # hits boundary
         if self.head.x > self.w or self.head.x < 0 or self.head.y > self.h - 1 or self.head.y < 0:
+            print("Walked into the electric fence!")
+            return True
+        
+        if self.hunger <= 0:
+            print("Starved to death!")
             return True
         # hits itself
         if self.head in self.snake[1:]:
+            print("Tripped like a dumbass!")
             x = random.randint(0, 10)
             if x < 7:
                 return True
         #eats poisoned food
         if self.head in self.food_poison:
+            print("Ate poison!")
             return True
         #drowns
         (_, name) = self.world[(self.head.x, self.head.y)]
         if name == "water":
+            print("Drowned!")
             return True
         #gets killed by a predator
         elif name == "forest":
+            print("Eaten by the predators")
             x = random.randint(0, 100)
             if x < 3:
                 return True
@@ -187,10 +200,10 @@ class Game:
 
         for food in self.food_poison:    
             (xp, yp) = self._board_points(food.x,food.y)
-            pygame.draw.rect(self.display, POSON, pygame.Rect(xp, yp, BLOCK_SIZE, BLOCK_SIZE))
+            pygame.draw.rect(self.display, POISON, pygame.Rect(xp, yp, BLOCK_SIZE, BLOCK_SIZE))
         
-        text = font.render("Score: " + str(self.score), True, WHITE)
-        self.display.blit(text, [0, 0])
+        self.draw_stats()
+        self.display.blit(self.stats_board, [self.width-200, 0])
         pygame.display.flip()
 
     def drawBoard(self):
@@ -204,6 +217,12 @@ class Game:
             pygame.draw.line(self.display, (255, 255, 255, 0), (x, self.board_start), ( x,  self._board_point(self.h)))
         for y in range(self.board_start,   self._board_point(self.h), BLOCK_SIZE):
             pygame.draw.line(self.display, (255, 255, 255, 20), (self.board_start, y), (  self._board_point(self.w), y))
+
+    def draw_stats(self):
+        text = font.render("Score: " + str(self.score), True, WHITE)
+        self.stats_board.blit(text, [0, 0])
+        text2 = font.render("Hunger: " + str(self.hunger), True, WHITE)
+        self.stats_board.blit(text2, [0, 40])
 
         
     def _move(self, direction):
