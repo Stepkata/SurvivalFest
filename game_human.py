@@ -6,6 +6,7 @@ from world_generator import generateWorld
 import pickle
 import math
 import numpy as np
+from collections import deque
 
 pygame.init()
 #font = pygame.font.Font('arial.ttf', 25)
@@ -32,7 +33,7 @@ EADIBLE = (247, 149, 45)
 BLOCK_SIZE = 6
 SPEED = 5
 
-class Game:
+class HumanGame:
     
     def __init__(self, w=1400, h=750, seed=890):
         #display params
@@ -46,8 +47,8 @@ class Game:
         # init display
         self.display = pygame.display.set_mode((self.width, self.height))
         self.game_board = pygame.surface.Surface((self.w*BLOCK_SIZE, self.h*BLOCK_SIZE)).convert()
-        self.stats_board = pygame.surface.Surface((200, h)).convert()
-        pygame.display.set_caption('Game')
+        self.stats_board = pygame.surface.Surface((250, h)).convert()
+        pygame.display.set_caption('HumanGame')
         self.clock = pygame.time.Clock()
         
         # init game state
@@ -58,7 +59,10 @@ class Game:
         self.player = [self.head]
             
         self.score = 0
+        self.stats = deque(maxlen=20)
+
         self.hunger = 30
+        self.wait = False
         self.food_eadible = []
         self.food_poison = []
         self.seed = seed
@@ -94,7 +98,7 @@ class Game:
 
     def play_step(self):
         # 1. collect user input
-        SPEED = 5
+        self.wait = not(self.wait)
         if self.clock.get_time() % 40 == 0:
             for spawn in self._spawn_food_locations:
                 self._place_food(spawn.x, spawn.y, self.food_eadible)
@@ -114,20 +118,23 @@ class Game:
                     self.direction = Direction.UP
                 elif event.key == pygame.K_DOWN:
                     self.direction = Direction.DOWN
+                elif event.key == pygame.K_q:
+                    pygame.quit()
+                    quit()
         
         
         (_, name) = self.world[(self.head.x, self.head.y)]
-        if name == "swamp":
-            SPEED -= 2
-
-        # 2. move
-        self._move(self.direction) # update the head
-        self.player.insert(0, self.head)
-        self.player.pop()
+        if name == "swamp" and self.wait:
+            pass
+        else:
+            # 2. move
+            self._move(self.direction) # update the head
+            self.player.insert(0, self.head)
+            self.player.pop()
         
         # 3. check if game over
-        if self._is_collision():
-            return True, self.score
+        '''if self._is_collision():
+            return True, self.score'''
             
         # 4. eat food or just move
         if self.head in self.food_eadible:
@@ -136,6 +143,7 @@ class Game:
             self.food_eadible.remove(self.head)
             self._spawn_food_locations.append(Point(math.floor(self.head.x/self.tile), math.floor(self.head.y/self.tile)))
         
+        self.stats.append(self.score)
         # 5. update ui and clock
         self._update_ui()
         self.hunger -= 1
@@ -178,7 +186,7 @@ class Game:
         self.display.blit(self.game_board, [self.board_start, self.board_start])
 
         self.draw_stats()
-        self.display.blit(self.stats_board, [self.width-200, 0])
+        self.display.blit(self.stats_board, [self.width-260, 0])
         text = font.render("Score: " + str(self.score), True, WHITE)
         self.display.blit(text, [self.width-200, 0])
         text2 = font.render("Hunger: " + str(self.hunger), True, WHITE)
@@ -187,6 +195,7 @@ class Game:
         pygame.display.flip()
 
     def drawBoard(self):
+        
         for pt in self.player:
             (xp, yp) = (pt.x*BLOCK_SIZE,pt.y*BLOCK_SIZE)
             pygame.draw.rect(self.game_board, BLUE1, pygame.Rect(xp, yp, BLOCK_SIZE, BLOCK_SIZE))
@@ -209,7 +218,18 @@ class Game:
             pygame.draw.line(self.game_board, (255, 255, 255, 20), (0, y), ( self.w*BLOCK_SIZE, y))   
 
     def draw_stats(self):
-        pass
+        self.stats_board.fill(BLACK)
+        pygame.draw.line(self.stats_board, (255, 255, 255, 0), (30, 100), ( 30,  255))
+        pygame.draw.line(self.stats_board, (255, 255, 255, 0), (25, 250), ( 230,  250))
+        text = font.render(str(max(self.stats)), True, WHITE)
+        self.stats_board.blit(text, [10, 70])
+        self.stats_board.blit(font.render(str(0), True, WHITE), [10, 250])
+        for i in range(len(self.stats)-2):
+            h1 = 250 - 150*((self.stats[i]+1)/(max(self.stats)+1))
+            h2 = 250 - 150*((self.stats[i+1]+1)/(max(self.stats)+1))
+            pygame.draw.line(self.stats_board, (255, 255, 255, 0), 
+                             (30+i*10, h1), ( 30+(i+1)*10,  h2))
+
 
         
     def _move(self, direction):
@@ -226,23 +246,3 @@ class Game:
             
         self.head = Point(x, y)
 
-
-            
-
-if __name__ == '__main__':
-    screen_info = pygame.display.Info()
-    screen_width, screen_height = screen_info.current_w, screen_info.current_h
-
-    game = Game(screen_width, screen_height)
-    
-    # game loop
-    while True:
-        game_over, score = game.play_step()
-        
-        if game_over == True:
-            break
-        
-    print('Final Score', score)
-
-        
-    pygame.quit()
