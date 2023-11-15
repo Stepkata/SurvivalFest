@@ -55,11 +55,8 @@ class Game:
 
         #snake
         self.head = Point(int(self.w/2), int(self.h/2))
-        self.snake = [self.head, 
-                      Point(self.head.x-1, self.head.y),
-                      Point(self.head.x-2, self.head.y)]
-        
-        
+        self.player = [self.head]
+            
         self.score = 0
         self.hunger = 30
         self.food_eadible = []
@@ -131,7 +128,8 @@ class Game:
 
         # 2. move
         self._move(self.direction) # update the head
-        self.snake.insert(0, self.head)
+        self.player.insert(0, self.head)
+        self.player.pop()
         
         # 3. check if game over
         if self._is_collision():
@@ -140,11 +138,9 @@ class Game:
         # 4. eat food or just move
         if self.head in self.food_eadible:
             self.score += 1
-            self.hunger += 10
+            self.hunger += 5
             self.food_eadible.remove(self.head)
             self._spawn_food_locations.append(Point(math.floor(self.head.x/self.tile), math.floor(self.head.y/self.tile)))
-        else:
-            self.snake.pop()
         
         # 5. update ui and clock
         self._update_ui()
@@ -162,12 +158,7 @@ class Game:
         if self.hunger <= 0:
             print("Starved to death!")
             return True
-        # hits itself
-        if self.head in self.snake[1:]:
-            print("Tripped like a dumbass!")
-            x = random.randint(0, 10)
-            if x < 7:
-                return True
+
         #eats poisoned food
         if self.head in self.food_poison:
             print("Ate poison!")
@@ -179,9 +170,9 @@ class Game:
             return True
         #gets killed by a predator
         elif name == "forest":
-            print("Eaten by the predators")
             x = random.randint(0, 100)
             if x < 3:
+                print("Eaten by the predators")
                 return True
         
         return False
@@ -190,7 +181,7 @@ class Game:
         self.display.fill(BLACK)
         self.drawBoard()
         
-        for pt in self.snake:
+        for pt in self.player:
             (xp, yp) = self._board_points(pt.x,pt.y)
             pygame.draw.rect(self.display, BLUE1, pygame.Rect(xp, yp, BLOCK_SIZE, BLOCK_SIZE))
 
@@ -204,6 +195,10 @@ class Game:
         
         self.draw_stats()
         self.display.blit(self.stats_board, [self.width-200, 0])
+        text = font.render("Score: " + str(self.score), True, WHITE)
+        self.display.blit(text, [self.width-200, 0])
+        text2 = font.render("Hunger: " + str(self.hunger), True, WHITE)
+        self.display.blit(text2, [self.width-200, 40])
         pygame.display.flip()
 
     def drawBoard(self):
@@ -219,10 +214,7 @@ class Game:
             pygame.draw.line(self.display, (255, 255, 255, 20), (self.board_start, y), (  self._board_point(self.w), y))
 
     def draw_stats(self):
-        text = font.render("Score: " + str(self.score), True, WHITE)
-        self.stats_board.blit(text, [0, 0])
-        text2 = font.render("Hunger: " + str(self.hunger), True, WHITE)
-        self.stats_board.blit(text2, [0, 40])
+        pass
 
         
     def _move(self, direction):
