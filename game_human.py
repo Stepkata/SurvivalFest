@@ -45,8 +45,8 @@ class Game:
 
         # init display
         self.display = pygame.display.set_mode((self.width, self.height))
-        #self.game_board = pygame.display.set_mode((self.w, self.h))
-        self.stats_board = pygame.surface.Surface((200, h))
+        self.game_board = pygame.surface.Surface((self.w*BLOCK_SIZE, self.h*BLOCK_SIZE)).convert()
+        self.stats_board = pygame.surface.Surface((200, h)).convert()
         pygame.display.set_caption('Game')
         self.clock = pygame.time.Clock()
         
@@ -65,12 +65,6 @@ class Game:
         self._spawn_food_locations = []
         self.world = generateWorld(self.w, self.h, seed)
         self._create_food()
-
-    def _board_point(self, x):
-        return self.board_start + x*BLOCK_SIZE
-
-    def _board_points(self, x, y):
-        return (self._board_point(x), self._board_point(y))
     
     def _create_food(self):
         for i in range(int(self.w/self.tile)):
@@ -138,7 +132,7 @@ class Game:
         # 4. eat food or just move
         if self.head in self.food_eadible:
             self.score += 1
-            self.hunger += 5
+            self.hunger += 7
             self.food_eadible.remove(self.head)
             self._spawn_food_locations.append(Point(math.floor(self.head.x/self.tile), math.floor(self.head.y/self.tile)))
         
@@ -179,39 +173,40 @@ class Game:
         
     def _update_ui(self):
         self.display.fill(BLACK)
+        self.drawBackground()
         self.drawBoard()
-        
-        for pt in self.player:
-            (xp, yp) = self._board_points(pt.x,pt.y)
-            pygame.draw.rect(self.display, BLUE1, pygame.Rect(xp, yp, BLOCK_SIZE, BLOCK_SIZE))
+        self.display.blit(self.game_board, [self.board_start, self.board_start])
 
-        for food in self.food_eadible:    
-            (xp, yp) = self._board_points(food.x,food.y)
-            pygame.draw.rect(self.display, EADIBLE, pygame.Rect(xp, yp, BLOCK_SIZE, BLOCK_SIZE))
-
-        for food in self.food_poison:    
-            (xp, yp) = self._board_points(food.x,food.y)
-            pygame.draw.rect(self.display, POISON, pygame.Rect(xp, yp, BLOCK_SIZE, BLOCK_SIZE))
-        
         self.draw_stats()
         self.display.blit(self.stats_board, [self.width-200, 0])
         text = font.render("Score: " + str(self.score), True, WHITE)
         self.display.blit(text, [self.width-200, 0])
         text2 = font.render("Hunger: " + str(self.hunger), True, WHITE)
         self.display.blit(text2, [self.width-200, 40])
+        pygame.display.update()
         pygame.display.flip()
 
     def drawBoard(self):
-        pygame.draw.rect(self.display, (140, 140, 140), pygame.Rect(self.board_start-BLOCK_SIZE, self.board_start-BLOCK_SIZE, 
-                                                                    (self.w+2)*BLOCK_SIZE, (self.h+2)*BLOCK_SIZE))
+        for pt in self.player:
+            (xp, yp) = (pt.x*BLOCK_SIZE,pt.y*BLOCK_SIZE)
+            pygame.draw.rect(self.game_board, BLUE1, pygame.Rect(xp, yp, BLOCK_SIZE, BLOCK_SIZE))
+
+        for food in self.food_eadible:    
+            (xp, yp) = (food.x*BLOCK_SIZE,food.y*BLOCK_SIZE)
+            pygame.draw.rect(self.game_board, EADIBLE, pygame.Rect(xp, yp, BLOCK_SIZE, BLOCK_SIZE))
+
+        for food in self.food_poison:    
+            (xp, yp) = (food.x*BLOCK_SIZE,food.y*BLOCK_SIZE)
+            pygame.draw.rect(self.game_board, POISON, pygame.Rect(xp, yp, BLOCK_SIZE, BLOCK_SIZE))
+
+    def drawBackground(self):
         for (x, y), ((r,g,b,_), _) in self.world.items():
-                (xp, yp) = self._board_points(x,y)
-                pygame.draw.rect(self.display, (r*255,g*255,b*255), pygame.Rect(xp, yp, BLOCK_SIZE, BLOCK_SIZE))
+                pygame.draw.rect(self.game_board, (r*255,g*255,b*255), pygame.Rect(x*BLOCK_SIZE, y*BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
         
-        for x in range(self.board_start,   self._board_point(self.w), BLOCK_SIZE):
-            pygame.draw.line(self.display, (255, 255, 255, 0), (x, self.board_start), ( x,  self._board_point(self.h)))
-        for y in range(self.board_start,   self._board_point(self.h), BLOCK_SIZE):
-            pygame.draw.line(self.display, (255, 255, 255, 20), (self.board_start, y), (  self._board_point(self.w), y))
+        for x in range(0,   self.w*BLOCK_SIZE, BLOCK_SIZE):
+            pygame.draw.line(self.game_board, (255, 255, 255, 0), (x, 0), ( x,  self.h*BLOCK_SIZE))
+        for y in range(0,  self.h*BLOCK_SIZE, BLOCK_SIZE):
+            pygame.draw.line(self.game_board, (255, 255, 255, 20), (0, y), ( self.w*BLOCK_SIZE, y))   
 
     def draw_stats(self):
         pass
