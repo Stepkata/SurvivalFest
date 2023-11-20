@@ -32,7 +32,7 @@ EADIBLE = (247, 149, 45)
 
 BLOCK_SIZE = 6
 SPEED = 5
-
+MAX_FRAMES = 1000
 class AIGame:
     
     def __init__(self, w=1400, h=750, seed=890):
@@ -78,6 +78,8 @@ class AIGame:
         self.head = Point(self.w/2, self.h/2)
         self.player = [self.head]
 
+        self.hunger = 30
+        self.wait = False
         self.score = 0
         self.food_eadible = []
         self.food_poison = []
@@ -113,10 +115,10 @@ class AIGame:
         look = np.zeros((sight*2+1, sight*2+1))
         if pt is None:
             pt = self.head
-        for x in range(pt.x - sight, pt.x+sight):
-            for y in range(pt.y-sight, pt.y + sight):
-                look[x,y] = ((x,y) in self.food_eadible)
-        return look      
+        for i, x in enumerate(range(int(pt.x - sight), int(pt.x+sight))):
+            for j, y in enumerate(range(int(pt.y-sight), int(pt.y + sight))):
+                look[i,j] = ((x,y) in self.food_eadible)
+        return look.flatten()      
 
     def play_step(self, action):
         self.frame_iteration += 1
@@ -149,7 +151,7 @@ class AIGame:
             self.player.pop()
         
         game_over = False
-        if self.is_collision() or self.frame_iteration > 100*len(self.snake):
+        if self.is_collision() or self.frame_iteration > MAX_FRAMES:
             game_over = True
             reward = -10
             return reward, game_over, self.score
@@ -171,7 +173,7 @@ class AIGame:
         # 6. return game over and score
         return reward, game_over, self.score
     
-    def _is_collision(self, pt= None):
+    def is_collision(self, pt= None):
         # hits boundary
         if pt is None:
             pt = self.head

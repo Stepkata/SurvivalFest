@@ -2,7 +2,7 @@ import torch
 import random
 import numpy as np
 from collections import deque
-from game import SnakeGameAI, Direction, Point
+from game import AIGame, Direction, Point
 from model import Linear_QNet, QTrainer
 from helper import plot
 
@@ -17,16 +17,20 @@ class Agent:
         self.epsilon = 0 # randomness
         self.gamma = 0.9 # discount rate
         self.memory = deque(maxlen=MAX_MEMORY) # popleft()
-        self.model = Linear_QNet(11, 256, 3)
+        self.sight = 4
+        self.inputs = 7 + pow(self.sight*2+1, 2)
+        self.hidden = 256
+        self.outputs = 3
+        self.model = Linear_QNet(self.inputs, self.hidden, self.outputs)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
 
     def get_state(self, game):
-        head = game.snake[0]
-        point_l = Point(head.x - 20, head.y)
-        point_r = Point(head.x + 20, head.y)
-        point_u = Point(head.x, head.y - 20)
-        point_d = Point(head.x, head.y + 20)
+        head = game.player[0]
+        point_l = Point(head.x - self.sight*5, head.y)
+        point_r = Point(head.x + self.sight*5, head.y)
+        point_u = Point(head.x, head.y - self.sight*5)
+        point_d = Point(head.x, head.y + self.sight*5)
         
         dir_l = game.direction == Direction.LEFT
         dir_r = game.direction == Direction.RIGHT
@@ -57,14 +61,10 @@ class Agent:
             dir_r,
             dir_u,
             dir_d,
-            
-            # Food location 
-            game.food.x < game.head.x,  # food left
-            game.food.x > game.head.x,  # food right
-            game.food.y < game.head.y,  # food up
-            game.food.y > game.head.y  # food down
-            ]
 
+            ]
+        look = game.nearest_food(self.sight)
+        state.extend(look)
         return np.array(state, dtype=int)
 
     def remember(self, state, action, reward, next_state, done):
@@ -93,6 +93,7 @@ class Agent:
             final_move[move] = 1
         else:
             state0 = torch.tensor(state, dtype=torch.float)
+            print(len(state0))
             prediction = self.model(state0)
             move = torch.argmax(prediction).item()
             final_move[move] = 1
@@ -106,7 +107,7 @@ def train():
     total_score = 0
     record = 0
     agent = Agent()
-    game = SnakeGameAI()
+    game = AIGame()
     while True:
         # get old state
         state_old = agent.get_state(game)
