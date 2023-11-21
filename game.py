@@ -59,9 +59,10 @@ class AIGame:
         self.player = [self.head]
             
         self.score = 0
+        self.record = 0
         self.stats = deque(maxlen=20)
 
-        self.hunger = 30
+        self.hunger = 50
         self.wait = False
         self.food_eadible = []
         self.food_poison = []
@@ -70,6 +71,9 @@ class AIGame:
         self.frame_iteration = 0
         self.world = generateWorld(self.w, self.h, seed)
         self._create_food()
+
+    def set_stats(self, record):
+        self.record = record
 
     def reset(self):
         # init game state
@@ -89,7 +93,7 @@ class AIGame:
     def _create_food(self):
         for i in range(int(self.w/self.tile)):
             for j in range(int(self.h/self.tile)):           
-                for _ in range(5):
+                for _ in range(10):
                     self._place_food(i, j, self.food_eadible)
                 for _ in range(2):
                     self._place_food(i, j, self.food_poison)
@@ -118,7 +122,13 @@ class AIGame:
         for i, x in enumerate(range(int(pt.x - sight), int(pt.x+sight))):
             for j, y in enumerate(range(int(pt.y-sight), int(pt.y + sight))):
                 look[i,j] = ((x,y) in self.food_eadible)
-        return look.flatten()      
+        return look.flatten()    
+
+    def get_terrain(self, pt=None):
+        if pt is None:
+            pt = self.head
+        (_, name) = self.world[(pt.x, pt.y)]
+        return [name=="grass", name=="water", name=="forest", name=="water"]  
 
     def play_step(self, action):
         self.frame_iteration += 1
@@ -150,59 +160,63 @@ class AIGame:
             self.player.insert(0, self.head)
             self.player.pop()
         
-        game_over = False
-        if self.is_collision() or self.frame_iteration > MAX_FRAMES:
-            game_over = True
+        game_over, reason =  self.is_collision()
+        if game_over or self.frame_iteration > MAX_FRAMES:
             reward = -10
-            return reward, game_over, self.score
+            return reward, game_over, reason, self.score
 
             
         # 4. eat food or just move
         if self.head in self.food_eadible:
             self.score += 1
             reward = 10
-            self.hunger += 7
+            if name == "swamp":
+                self.hunger += 22
+            else:
+                self.hunger += 10
             self.food_eadible.remove(self.head)
             self._spawn_food_locations.append(Point(math.floor(self.head.x/self.tile), math.floor(self.head.y/self.tile)))
         
         self.stats.append(self.score)
         # 5. update ui and clock
         self._update_ui()
+        if name == "swamp":
+            self.hunger -= 1
         self.hunger -= 1
         self.clock.tick(SPEED)
         # 6. return game over and score
-        return reward, game_over, self.score
+        return reward, game_over, reason, self.score
     
     def is_collision(self, pt= None):
         # hits boundary
+        reason = ""
         if pt is None:
             pt = self.head
         if pt.x > self.w or pt.x < 0 or pt.y > self.h - 1 or pt.y < 0:
-            print("Walked into the electric fence!")
-            return True
+            reason = "Walked into the electric fence!"
+            return True, reason
         
         if self.hunger <= 0:
-            print("Starved to death!")
-            return True
+            reason = "Starved to death!"
+            return True, reason
 
         #eats poisoned food
         if pt in self.food_poison:
-            self.hunger += 5
-            print("Ate poison!")
-            return True
+            reason = "Ate poison!"
+            return True, reason
         #drowns
         (_, name) = self.world[(pt.x, pt.y)]
         if name == "water":
-            print("Drowned!")
-            return True
+            reason = "Drowned!"
+            return True, reason
         #gets killed by a predator
         elif name == "forest":
             x = random.randint(0, 100)
             if x < 3:
-                print("Eaten by the predators")
-                return True
+                reason = "Eaten by the predators"
+                return True, reason
         
-        return False
+        return False, reason
         
     def _update_ui(self):
         self.display.fill(BLACK)
@@ -246,12 +260,14 @@ class AIGame:
         self.stats_board.fill(BLACK)
         pygame.draw.line(self.stats_board, (255, 255, 255, 0), (30, 100), ( 30,  255))
         pygame.draw.line(self.stats_board, (255, 255, 255, 0), (25, 250), ( 230,  250))
-        text = font.render(str(max(self.stats)), True, WHITE)
+        if max(self.stats)> self.record:
+            self.record = max(self.stats)
+        text = font.render(str(self.record), True, WHITE)
         self.stats_board.blit(text, [10, 70])
         self.stats_board.blit(font.render(str(0), True, WHITE), [10, 250])
         for i in range(len(self.stats)-2):
-            h1 = 250 - 150*((self.stats[i]+1)/(max(self.stats)+1))
-            h2 = 250 - 150*((self.stats[i+1]+1)/(max(self.stats)+1))
+            h1 = 250 - 150*((self.stats[i]+1)/(self.record+1))
+            h2 = 250 - 150*((self.stats[i+1]+1)/(self.record+1))
             pygame.draw.line(self.stats_board, (255, 255, 255, 0), 
                              (30+i*10, h1), ( 30+(i+1)*10,  h2))
 
