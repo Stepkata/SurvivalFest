@@ -131,17 +131,18 @@ def train():
 
         if done:
             # train long memory, plot result
+            game.add_log(reason)
             game.reset()
             agent.n_games += 1
             agent.train_long_memory()
 
             if score > record:
                 record = score
+                game.set_stats(record)
                 agent.model.save()
 
-            print('Game', agent.n_games, 'Score', score, 'Record:', record, "Reason:", reason)
-            game.set_stats(record)
 
+            print('Game', agent.n_games, 'Score', score, 'Record:', record, "Reason:", reason)
             plot_scores.append(score)
             total_score += score
             mean_score = total_score / agent.n_games

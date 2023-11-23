@@ -61,6 +61,7 @@ class AIGame:
         self.score = 0
         self.record = 0
         self.stats = deque(maxlen=20)
+        self.logs = deque(maxlen=15)
 
         self.hunger = 50
         self.wait = False
@@ -74,6 +75,9 @@ class AIGame:
 
     def set_stats(self, record):
         self.record = record
+    
+    def add_log(self, log):
+        self.logs.append(log)
 
     def reset(self):
         # init game state
@@ -169,7 +173,7 @@ class AIGame:
         # 4. eat food or just move
         if self.head in self.food_eadible:
             self.score += 1
-            reward = 10
+            reward = 10 + (MAX_FRAMES-self.frame_iteration)//20
             if name == "swamp":
                 self.hunger += 22
             else:
@@ -270,6 +274,10 @@ class AIGame:
             h2 = 250 - 150*((self.stats[i+1]+1)/(self.record+1))
             pygame.draw.line(self.stats_board, (255, 255, 255, 0), 
                              (30+i*10, h1), ( 30+(i+1)*10,  h2))
+            
+        for i, log in enumerate(self.logs):
+            text = font.render("=> "+log, True, WHITE)
+            self.stats_board.blit(text, [30, 300+25*i])
 
 
         
