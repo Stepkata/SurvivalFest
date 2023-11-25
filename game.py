@@ -31,11 +31,11 @@ POISON = (200,0,0)
 EADIBLE = (247, 149, 45)
 
 BLOCK_SIZE = 6
-SPEED = 5
+SPEED = 20
 MAX_FRAMES = 1000
 class AIGame:
     
-    def __init__(self, w=1400, h=750, seed=890):
+    def __init__(self, w=1400, h=750, seed=890, num_players=1):
         #display params
         self.width = w
         self.height = h
@@ -55,15 +55,15 @@ class AIGame:
         self.direction = Direction.RIGHT
 
         #snake
-        self.head = Point(int(self.w/2), int(self.h/2))
-        self.player = [self.head]
+        self.agents = []
+        self.num_agents = num_players
             
         self.score = 0
         self.record = 0
         self.stats = deque(maxlen=20)
         self.logs = deque(maxlen=15)
 
-        self.hunger = 50
+        self.hunger = [30 for _ in range(self.num_agents)]
         self.wait = False
         self.food_eadible = []
         self.food_poison = []
@@ -72,6 +72,11 @@ class AIGame:
         self.frame_iteration = 0
         self.world = generateWorld(self.w, self.h, seed)
         self._create_food()
+        self.setup()
+
+    def setup(self):
+        for _ in range(self.num_agents):
+            self.agents.append(Point(int(self.w/2), int(self.h/2)))
 
     def set_stats(self, record):
         self.record = record
@@ -83,10 +88,11 @@ class AIGame:
         # init game state
         self.direction = Direction.RIGHT
 
-        self.head = Point(self.w/2, self.h/2)
-        self.player = [self.head]
+        self.agents.clear()
+        for _ in range(self.num_agents):
+            self.agents.append(Point(int(self.w/2), int(self.h/2)))
 
-        self.hunger = 30
+        self.hunger = [30 for _ in range(self.num_agents)]
         self.wait = False
         self.score = 0
         self.food_eadible = []
@@ -122,7 +128,7 @@ class AIGame:
     def nearest_food(self, sight=1, pt=None):
         look = np.zeros((sight*2+1, sight*2+1))
         if pt is None:
-            pt = self.head
+            pt = self.player
         for i, x in enumerate(range(int(pt.x - sight), int(pt.x+sight))):
             for j, y in enumerate(range(int(pt.y-sight), int(pt.y + sight))):
                 look[i,j] = ((x,y) in self.food_eadible)
@@ -130,14 +136,15 @@ class AIGame:
 
     def get_terrain(self, pt=None):
         if pt is None:
-            pt = self.head
+            return
         (_, name) = self.world[(pt.x, pt.y)]
         return [name=="grass", name=="water", name=="forest", name=="water"]  
 
-    def play_step(self, action):
+    def play_step(self, action, agent_index):
         self.frame_iteration += 1
         reward = 0
-       
+        player = self.agents[agent_index]
+
         self.wait = not(self.wait)
         if self.clock.get_time() % 40 == 0:
             for spawn in self._spawn_food_locations:
@@ -155,52 +162,53 @@ class AIGame:
                     quit()
         
         
-        (_, name) = self.world[(self.head.x, self.head.y)]
+        (_, name) = self.world[(player.x, player.y)]
         if name == "swamp" and self.wait:
             pass
         else:
             # 2. move
-            self._move(action) # update the head
-            self.player.insert(0, self.head)
-            self.player.pop()
+            player = self._move(player, action) # update the player
+            self.agents[agent_index] = player
         
-        game_over, reason =  self.is_collision()
+        game_over, reason =  self.is_collision(player, agent_index)
         if game_over or self.frame_iteration > MAX_FRAMES:
             reward = -10
             return reward, game_over, reason, self.score
 
             
         # 4. eat food or just move
-        if self.head in self.food_eadible:
+        if player in self.food_eadible:
             self.score += 1
             reward = 10 + (MAX_FRAMES-self.frame_iteration)//20
             if name == "swamp":
-                self.hunger += 22
+                self.hunger[agent_index] += 22
             else:
-                self.hunger += 10
-            self.food_eadible.remove(self.head)
-            self._spawn_food_locations.append(Point(math.floor(self.head.x/self.tile), math.floor(self.head.y/self.tile)))
+                self.hunger[agent_index] += 10
+            self.food_eadible.remove(player)
+            self._spawn_food_locations.append(Point(math.floor(player.x/self.tile), math.floor(player.y/self.tile)))
         
         self.stats.append(self.score)
         # 5. update ui and clock
         self._update_ui()
         if name == "swamp":
-            self.hunger -= 1
-        self.hunger -= 1
+            self.hunger[agent_index] -= 1
+        self.hunger[agent_index] -= 1
         self.clock.tick(SPEED)
         # 6. return game over and score
         return reward, game_over, reason, self.score
     
-    def is_collision(self, pt= None):
+    def is_collision(self, pt= None, index=0):
         # hits boundary
         reason = ""
         if pt is None:
-            pt = self.head
+           return   
         if pt.x > self.w or pt.x < 0 or pt.y > self.h - 1 or pt.y < 0:
             reason = "Walked into the electric fence!"
             return True, reason
         
-        if self.hunger <= 0:
+        #starves
+        hunger = self.hunger[index]
+        if hunger <= 0:
             reason = "Starved to death!"
             return True, reason
 
@@ -239,7 +247,7 @@ class AIGame:
 
     def drawBoard(self):
         
-        for pt in self.player:
+        for pt in self.agents:
             (xp, yp) = (pt.x*BLOCK_SIZE,pt.y*BLOCK_SIZE)
             pygame.draw.rect(self.game_board, BLUE1, pygame.Rect(xp, yp, BLOCK_SIZE, BLOCK_SIZE))
 
@@ -281,7 +289,7 @@ class AIGame:
 
 
         
-    def _move(self, action):
+    def _move(self, player, action):
         clock_wise = [Direction.RIGHT, Direction.DOWN, Direction.LEFT, Direction.UP]
         idx = clock_wise.index(self.direction)
 
@@ -297,8 +305,8 @@ class AIGame:
         self.direction = new_dir
 
         self.direction = new_dir
-        x = self.head.x
-        y = self.head.y
+        x = player.x
+        y = player.y
         if self.direction == Direction.RIGHT:
             x += 1
         elif self.direction == Direction.LEFT:
@@ -308,5 +316,5 @@ class AIGame:
         elif self.direction == Direction.UP:
             y -= 1
             
-        self.head = Point(x, y)
+        return Point(x, y)
 

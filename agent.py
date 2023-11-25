@@ -2,7 +2,7 @@ import torch
 import random
 import numpy as np
 from collections import deque
-from game import AIGame, Direction, Point
+from game import Direction, Point
 from model import Linear_QNet, QTrainer
 
 MAX_MEMORY = 100_000
@@ -11,7 +11,7 @@ LR = 0.001
 
 class Agent:
 
-    def __init__(self):
+    def __init__(self, i=0):
         self.n_games = 0
         self.epsilon = 0 # randomness
         self.gamma = 0.9 # discount rate
@@ -23,9 +23,15 @@ class Agent:
         self.model = Linear_QNet(self.inputs, self.hidden, self.outputs)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
+        self.index = i
+        self.plot_scores = []
+        self.plot_mean_scores = []
+        self.total_score = 0
+        self.record = 0
+
 
     def get_state(self, game):
-        head = game.player[0]
+        head = game.agents[self.index]
         point_l = Point(head.x - 1, head.y)
         point_r = Point(head.x + 1, head.y)
         point_u = Point(head.x, head.y - 1)
@@ -36,10 +42,10 @@ class Agent:
         dir_u = game.direction == Direction.UP
         dir_d = game.direction == Direction.DOWN
 
-        col_r, _ = game.is_collision(point_r)
-        col_l, _ = game.is_collision(point_l)
-        col_u, _ = game.is_collision(point_u)
-        col_d, _ = game.is_collision(point_d)
+        col_r, _ = game.is_collision(point_r, self.index)
+        col_l, _ = game.is_collision(point_l, self.index)
+        col_u, _ = game.is_collision(point_u, self.index)
+        col_d, _ = game.is_collision(point_d, self.index)
 
         state = [
             # Danger straight
@@ -104,50 +110,3 @@ class Agent:
 
         return final_move
 
-
-def train():
-    plot_scores = []
-    plot_mean_scores = []
-    total_score = 0
-    record = 0
-    agent = Agent()
-    game = AIGame()
-    while True:
-        # get old state
-        state_old = agent.get_state(game)
-
-        # get move
-        final_move = agent.get_action(state_old)
-
-        # perform move and get new state
-        reward, done, reason, score = game.play_step(final_move)
-        state_new = agent.get_state(game)
-
-        # train short memory
-        agent.train_short_memory(state_old, final_move, reward, state_new, done)
-
-        # remember
-        agent.remember(state_old, final_move, reward, state_new, done)
-
-        if done:
-            # train long memory, plot result
-            game.add_log(reason)
-            game.reset()
-            agent.n_games += 1
-            agent.train_long_memory()
-
-            if score > record:
-                record = score
-                game.set_stats(record)
-                agent.model.save()
-
-
-            print('Game', agent.n_games, 'Score', score, 'Record:', record, "Reason:", reason)
-            plot_scores.append(score)
-            total_score += score
-            mean_score = total_score / agent.n_games
-            plot_mean_scores.append(mean_score)
-
-
-if __name__ == '__main__':
-    train()
