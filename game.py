@@ -19,6 +19,7 @@ class Direction(Enum):
     DOWN = 4
     
 Point = namedtuple('Point', 'x, y')
+Player = namedtuple('Player', 'position, dead')
 
 # rgb colors
 WHITE = (255, 255, 255)
@@ -43,11 +44,12 @@ class AIGame:
         self.h = 120
         self.board_start = 50
         self.tile = 20
+        self.stats_w = 250
 
         # init display
         self.display = pygame.display.set_mode((self.width, self.height))
         self.game_board = pygame.surface.Surface((self.w*BLOCK_SIZE, self.h*BLOCK_SIZE)).convert()
-        self.stats_board = pygame.surface.Surface((250, h)).convert()
+        self.stats_board = pygame.surface.Surface((self.stats_w, self.height)).convert()
         pygame.display.set_caption('AIGame')
         self.clock = pygame.time.Clock()
         
@@ -61,7 +63,7 @@ class AIGame:
         self.score = 0
         self.record = 0
         self.stats = deque(maxlen=20)
-        self.logs = deque(maxlen=15)
+        self.logs = deque(maxlen=8)
 
         self.hunger = [30 for _ in range(self.num_agents)]
         self.wait = False
@@ -76,7 +78,7 @@ class AIGame:
 
     def setup(self):
         for _ in range(self.num_agents):
-            self.agents.append(Point(int(self.w/2), int(self.h/2)))
+            self.agents.append(Player(Point(int(self.w/2), int(self.h/2)), False))
 
     def set_stats(self, record):
         self.record = record
@@ -90,7 +92,7 @@ class AIGame:
 
         self.agents.clear()
         for _ in range(self.num_agents):
-            self.agents.append(Point(int(self.w/2), int(self.h/2)))
+            self.agents.append(Player(Point(int(self.w/2), int(self.h/2)), False))
 
         self.hunger = [30 for _ in range(self.num_agents)]
         self.wait = False
@@ -143,7 +145,7 @@ class AIGame:
     def play_step(self, action, agent_index):
         self.frame_iteration += 1
         reward = 0
-        player = self.agents[agent_index]
+        player = self.agents[agent_index].position
 
         self.wait = not(self.wait)
         if self.clock.get_time() % 40 == 0:
@@ -168,10 +170,11 @@ class AIGame:
         else:
             # 2. move
             player = self._move(player, action) # update the player
-            self.agents[agent_index] = player
+            self.agents[agent_index] = Player(player, False)
         
         game_over, reason =  self.is_collision(player, agent_index)
         if game_over or self.frame_iteration > MAX_FRAMES:
+            self.agents[agent_index] = Player(player, True)
             reward = -10
             return reward, game_over, reason, self.score
 
@@ -229,27 +232,47 @@ class AIGame:
                 return True, reason
         
         return False, reason
+    
+    # Function to display text
+    def _display_text(self, surface, text, font_size, position):
+        font = pygame.font.Font(pygame.font.match_font("Arial"), font_size)
+        text_surface = font.render(text, True, WHITE)
+        surface.blit(text_surface, position)
+
+    # Function to arrange strings in columns and rows
+    def _display_array(self, surface, array, setoffx, setoffy):
+        col_count = 3  # Number of columns
+        row_count = (len(array) + col_count - 1) // col_count  # Calculate number of rows
+        max_font_size = 15  # Maximum font size
+
+        # Calculate font size based on array length
+        font_size = min(self.stats_w // col_count, max_font_size)
+
+        for i, text in enumerate(array):
+            row = i // col_count
+            col = i % col_count
+
+            x = col * (self.stats_w // col_count) + setoffx
+            y = row * (200 // row_count) + setoffy
+
+            self._display_text(surface, text, font_size, (x, y))
         
     def _update_ui(self):
         self.display.fill(BLACK)
         self.drawBackground()
         self.drawBoard()
         self.display.blit(self.game_board, [self.board_start, self.board_start])
-
         self.draw_stats()
-        self.display.blit(self.stats_board, [self.width-260, 0])
-        text = font.render("Score: " + str(self.score), True, WHITE)
-        self.display.blit(text, [self.width-200, 0])
-        text2 = font.render("Hunger: " + str(self.hunger), True, WHITE)
-        self.display.blit(text2, [self.width-200, 40])
+        self.display.blit(self.stats_board, [self.width-280, 0])
         pygame.display.update()
         pygame.display.flip()
 
     def drawBoard(self):
         
-        for pt in self.agents:
+        for (pt, dead) in self.agents:
             (xp, yp) = (pt.x*BLOCK_SIZE,pt.y*BLOCK_SIZE)
-            pygame.draw.rect(self.game_board, BLUE1, pygame.Rect(xp, yp, BLOCK_SIZE, BLOCK_SIZE))
+            color = BLUE2 if not dead else BLACK
+            pygame.draw.rect(self.game_board, color, pygame.Rect(xp, yp, BLOCK_SIZE, BLOCK_SIZE))
 
         for food in self.food_eadible:    
             (xp, yp) = (food.x*BLOCK_SIZE,food.y*BLOCK_SIZE)
@@ -269,7 +292,9 @@ class AIGame:
             pygame.draw.line(self.game_board, (255, 255, 255, 20), (0, y), ( self.w*BLOCK_SIZE, y))   
 
     def draw_stats(self):
+        font = pygame.font.Font(pygame.font.match_font("Arial"), 15)
         self.stats_board.fill(BLACK)
+        self._display_text(self.stats_board, "Current best score: " + str(self.score), 26, (30, 30))
         pygame.draw.line(self.stats_board, (255, 255, 255, 0), (30, 100), ( 30,  255))
         pygame.draw.line(self.stats_board, (255, 255, 255, 0), (25, 250), ( 230,  250))
         if max(self.stats)> self.record:
@@ -278,15 +303,17 @@ class AIGame:
         self.stats_board.blit(text, [10, 70])
         self.stats_board.blit(font.render(str(0), True, WHITE), [10, 250])
         for i in range(len(self.stats)-2):
-            h1 = 250 - 150*((self.stats[i]+1)/(self.record+1))
-            h2 = 250 - 150*((self.stats[i+1]+1)/(self.record+1))
+            h1 = 250 - 150*((self.stats[i])/(self.record+1))
+            h2 = 250 - 150*((self.stats[i+1])/(self.record+1))
             pygame.draw.line(self.stats_board, (255, 255, 255, 0), 
                              (30+i*10, h1), ( 30+(i+1)*10,  h2))
             
         for i, log in enumerate(self.logs):
             text = font.render("=> "+log, True, WHITE)
             self.stats_board.blit(text, [30, 300+25*i])
-
+        
+        self._display_text(self.stats_board, "Hunger", 20, (30, 510))
+        self._display_array(self.stats_board, ["Agent" + str(i) + ":" + str(h) for i, h in enumerate(self.hunger)], 20, 550)
 
         
     def _move(self, player, action):

@@ -12,7 +12,7 @@ class Evolution:
     def train(self):
         for i in range(self.num_agents):
             self.agents.append(Agent(i))
-        game = AIGame(w=1500, h=850, seed = self.seed, num_players=self.num_agents)
+        game = AIGame(w=1540, h=800, seed = self.seed, num_players=self.num_agents)
         
         while True:
             print(len(self.agents))

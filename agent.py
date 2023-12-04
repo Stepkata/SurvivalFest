@@ -31,7 +31,7 @@ class Agent:
 
 
     def get_state(self, game):
-        head = game.agents[self.index]
+        head = game.agents[self.index].position
         point_l = Point(head.x - 1, head.y)
         point_r = Point(head.x + 1, head.y)
         point_u = Point(head.x, head.y - 1)
