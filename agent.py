@@ -73,7 +73,7 @@ class Agent:
             dir_d,
             ]
         look = game.nearest_food(self.sight, head)
-        state.extend(look)
+        state.extend(look) #where the food is located
         terrain = game.get_terrain(head)
         state.extend(terrain)
         return np.array(state, dtype=int)

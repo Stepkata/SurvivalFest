@@ -3,12 +3,15 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import os
+import numpy as np
 
 class Linear_QNet(nn.Module):
     def __init__(self, input_size, hidden_size, output_size):
         super().__init__()
         self.linear1 = nn.Linear(input_size, hidden_size)
         self.linear3 = nn.Linear(hidden_size, hidden_size*2)
+        self.linear4 = nn.Linear(hidden_size*2, hidden_size*4)
+        self.linear4 = nn.Linear(hidden_size*4, hidden_size*2)
         self.linear4 = nn.Linear(hidden_size*2, hidden_size)
         self.linear2 = nn.Linear(hidden_size, output_size)
 
@@ -26,6 +29,22 @@ class Linear_QNet(nn.Module):
 
         file_name = os.path.join(model_folder_path, file_name)
         torch.save(self.state_dict(), file_name)
+
+    def get_weights_as_array(self):
+        # Get the model's state dictionary and convert it to a flat array
+        weights_array = []
+        for param in self.state_dict().values():
+            weights_array.extend(param.cpu().numpy().flatten())
+        return weights_array
+
+    def load_weights_from_array(self, weights_array):
+        # Load weights from the provided array into the model
+        current_idx = 0
+        for param in self.parameters():
+            param_size = param.detach().cpu().numpy().flatten().shape[0]
+            param.data.copy_(torch.from_numpy(np.array(weights_array[current_idx:current_idx + param_size])).view(param.size()).to(param.device))
+
+            current_idx += param_size
 
 
 class QTrainer:

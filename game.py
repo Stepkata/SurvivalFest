@@ -32,11 +32,11 @@ POISON = (200,0,0)
 EADIBLE = (247, 149, 45)
 
 BLOCK_SIZE = 6
-SPEED = 20
+SPEED = 200
 MAX_FRAMES = 1000
 class AIGame:
     
-    def __init__(self, w=1400, h=750, seed=890, num_players=1):
+    def __init__(self, w=1400, h=750, seed=570, num_players=1):
         #display params
         self.width = w
         self.height = h
@@ -344,4 +344,5 @@ class AIGame:
             y -= 1
             
         return Point(x, y)
+    
 
