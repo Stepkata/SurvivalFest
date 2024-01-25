@@ -2,6 +2,9 @@ from agent import Agent
 from game import AIGame
 import random
 import copy
+import matplotlib.pyplot as plt
+import math
+import numpy as np
 
 class Evolution:
     def __init__(self) -> None:
@@ -12,6 +15,9 @@ class Evolution:
         self.game = None
         self.best_agents = set()
         self.mutation_rate = 0.3
+        self.best = []
+        self.average = []
+        self.scores = []
     
     def train(self):
         for i in range(self.num_agents):
@@ -52,6 +58,8 @@ class Evolution:
                         agent.n_games += 1
                         agent.train_long_memory()
 
+                        self.scores.append(score)
+
                         if score > agent.record:
                             agent.record = score
                             game.set_stats(agent.record)
@@ -63,35 +71,32 @@ class Evolution:
                         agent.total_score += score
                         print("removing agent", agent.index)
                         self.alive_agents.remove(agent)
+            self.best.append(game.record)
+            self.average.append(np.mean(self.scores))
+            self.scores = []
             self.evolve()
             print("Nobody is alive~!")
+            self.visualise()
                         
     def evolve(self):
-        if len(self.best_agents)  == 0:
-            return
-        if len(self.best_agents) == 1:
-            self.agents = []
-            for i in range(self.num_agents):
-                agent = Agent(i)
-                x = random.randint(0, 10)
-                if x > 3:
-                    agent.model.load_weights_from_array(self.best_agents[0].model.get_weights_as_array())
-                self.agents.append(agent)
-        else:
-            selected_agents = self.tournament_selection(self.agents, 2)
-            offspring = []
-            for i in range(0, len(selected_agents)-2):
-                child = Agent(i)
-                child_weights = self.crossover(selected_agents[i], selected_agents[i + 1])
-                child.model.load_weights_from_array(child_weights)
-                offspring.append(child)
+        selected_agents = self.tournament_selection(self.agents, 2)
+        offspring = []
+        for i in range(0, self.num_agents-2):
+            child = Agent(i)
+            child_weights = self.crossover(selected_agents[i], selected_agents[i + 1])
+            child.model.load_weights_from_array(child_weights)
+            offspring.append(child)
 
-            # Mutation
-            mutated_offspring = [self.mutate(child) for child in offspring]
-            if len(mutated_offspring) < self.num_agents:
-                for i in range(len(mutated_offspring), self.num_agents-1):
-                    mutated_offspring.append(Agent(i))
-            self.agents = mutated_offspring
+        child = Agent(self.num_agents-1)
+        child_weights = self.crossover(selected_agents[self.num_agents-1], selected_agents[0])
+        child.model.load_weights_from_array(child_weights)
+        offspring.append(child)
+        # Mutation
+        mutated_offspring = [self.mutate(child) for child in offspring]
+        if len(mutated_offspring) < self.num_agents:
+            for i in range(len(mutated_offspring), self.num_agents-1):
+                mutated_offspring.append(Agent(i))
+        self.agents = mutated_offspring
 
 
     def tournament_selection(self, agents, tournament_size):
@@ -125,7 +130,22 @@ class Evolution:
         agent.model.load_weights_from_array(weights)
         return agent
 
+    def visualise(self):
+        plt.figure(figsize=(8, 6))
+        generations = range(0, len(self.average))
+        print(len(self.average))
+        print(len(self.best))
+        print(len(generations))
 
+        plt.scatter(generations, self.average, color='blue', label='Average Fitness', marker='.')
+        plt.scatter(generations, self.best, color='orange', label='Best Fitness', marker='.')
+
+        plt.title("Statystyki")
+        plt.xlabel('Generations')
+        plt.ylabel('Fitness')
+        plt.legend()
+
+        plt.savefig("Stats", bbox_inches='tight')
 
 if __name__ == '__main__':
     ev = Evolution()
